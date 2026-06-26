@@ -2,8 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
+import { InMemoryCacheService } from '../../../cache/in-memory-cache.service';
 
 export interface JwtPayload {
   sub: string;
@@ -18,7 +17,7 @@ export interface JwtPayload {
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     private readonly config: ConfigService,
-    @InjectRedis() private readonly redis: Redis,
+    private readonly cache: InMemoryCacheService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -29,7 +28,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload) {
-    const blacklisted = await this.redis.get(`jti_blacklist:${payload.jti}`);
+    const blacklisted = await this.cache.get(`jti_blacklist:${payload.jti}`);
     if (blacklisted) {
       throw new UnauthorizedException('Token has been revoked.');
     }

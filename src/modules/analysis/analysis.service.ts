@@ -1,24 +1,35 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AnalysisRepository } from './analysis.repository';
 import { ResumeParserService } from './parsers/resume-parser.service';
 import { JdScraperService } from './scraper/jd-scraper.service';
 import { CreateAnalysisDto } from './dto/create-analysis.dto';
-import { ANALYSIS_QUEUE } from './analysis.processor';
+import { AnalysisProcessor, AnalysisJobData } from './analysis.processor';
+import { InMemoryQueueService } from '../../queue/in-memory-queue.service';
 import { PROMPT_VERSION } from './llm/prompt';
 import { AnalysisStatus } from '@prisma/client';
 
 @Injectable()
-export class AnalysisService {
+export class AnalysisService implements OnModuleInit {
   constructor(
     private readonly repo: AnalysisRepository,
     private readonly parser: ResumeParserService,
     private readonly scraper: JdScraperService,
     private readonly config: ConfigService,
-    @InjectQueue(ANALYSIS_QUEUE) private readonly queue: Queue,
+    private readonly processor: AnalysisProcessor,
+    private readonly queue: InMemoryQueueService<AnalysisJobData>,
   ) {}
+
+  onModuleInit() {
+    this.queue.init(
+      (task) => this.processor.process(task.data),
+      {
+        concurrency: this.config.get<number>('ANALYSIS_WORKER_CONCURRENCY', 3),
+        maxRetries: 3,
+        retryDelay: 5000,
+      },
+    );
+  }
 
   async create(file: Express.Multer.File, dto: CreateAnalysisDto, userId?: string) {
     const maxChars = this.config.get<number>('ANALYSIS_MAX_TEXT_CHARS', 50000);
@@ -34,10 +45,8 @@ export class AnalysisService {
       jdText = dto.jdText!;
     }
 
-    // Generate a stable poll ID (client uses this to poll for results)
     const pollId = crypto.randomUUID();
 
-    // Create DB row first so analysisId is available for the job payload
     const analysis = await this.repo.create({
       userId,
       jobId: pollId,
@@ -49,8 +58,7 @@ export class AnalysisService {
       promptVersion: PROMPT_VERSION,
     });
 
-    // Enqueue with full payload including analysisId — no race condition
-    await this.queue.add('analyze', {
+    this.queue.add({
       analysisId: analysis.id,
       resumeText,
       jdText,

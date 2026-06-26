@@ -1,11 +1,10 @@
 import { Module, MiddlewareConsumer, NestModule, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { RedisModule } from '@nestjs-modules/ioredis';
-import { BullModule } from '@nestjs/bullmq';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
+import { CacheModule } from './cache/cache.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { AnalysisModule } from './modules/analysis/analysis.module';
@@ -26,12 +25,6 @@ import { DevAuthModule } from './modules/auth/dev-auth/dev-auth.module';
       validationSchema: envValidationSchema,
       validationOptions: { abortEarly: true },
     }),
-    RedisModule.forRootAsync({
-      useFactory: () => ({
-        type: 'single',
-        url: process.env.REDIS_URL || 'redis://localhost:6379',
-      }),
-    }),
     ThrottlerModule.forRoot([
       {
         name: 'global',
@@ -39,10 +32,8 @@ import { DevAuthModule } from './modules/auth/dev-auth/dev-auth.module';
         limit: parseInt(process.env.THROTTLE_LIMIT || '200'),
       },
     ]),
-    BullModule.forRoot({
-      connection: { url: process.env.REDIS_URL || 'redis://localhost:6379' },
-    }),
     PrismaModule,
+    CacheModule,
     AuthModule,
     UsersModule,
     AnalysisModule,

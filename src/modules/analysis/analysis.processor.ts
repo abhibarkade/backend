@@ -1,6 +1,4 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
-import { Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { AnalysisRepository } from './analysis.repository';
 import type { ILlmService } from './llm/llm.interface';
 import { LLM_SERVICE } from './llm/llm.interface';
@@ -16,20 +14,18 @@ export interface AnalysisJobData {
   userId?: string;
 }
 
-@Processor(ANALYSIS_QUEUE)
-export class AnalysisProcessor extends WorkerHost {
+@Injectable()
+export class AnalysisProcessor {
   private readonly logger = new Logger(AnalysisProcessor.name);
 
   constructor(
     private readonly analysisRepo: AnalysisRepository,
     private readonly prisma: PrismaService,
     @Inject(LLM_SERVICE) private readonly llm: ILlmService,
-  ) {
-    super();
-  }
+  ) {}
 
-  async process(job: Job<AnalysisJobData>) {
-    const { analysisId, resumeText, jdText, userId } = job.data;
+  async process(data: AnalysisJobData): Promise<void> {
+    const { analysisId, resumeText, jdText, userId } = data;
     this.logger.log(`Processing analysis job ${analysisId}`);
 
     try {

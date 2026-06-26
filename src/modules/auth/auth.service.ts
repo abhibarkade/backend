@@ -2,8 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException, Logger } from '
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import { InjectRedis } from '@nestjs-modules/ioredis';
-import Redis from 'ioredis';
+import { InMemoryCacheService } from '../../cache/in-memory-cache.service';
 
 const VALID_PROVIDERS = ['google', 'github', 'facebook', 'apple'];
 
@@ -15,7 +14,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
-    @InjectRedis() private readonly redis: Redis,
+    private readonly cache: InMemoryCacheService,
   ) {}
 
   validateProvider(provider: string): void {
@@ -26,14 +25,14 @@ export class AuthService {
 
   async generateCsrfState(): Promise<string> {
     const state = crypto.randomUUID();
-    await this.redis.set(`csrf:${state}`, '1', 'EX', 300);
+    await this.cache.set(`csrf:${state}`, '1', 'EX', 300);
     return state;
   }
 
   async validateCsrfState(state: string): Promise<void> {
-    const exists = await this.redis.get(`csrf:${state}`);
+    const exists = await this.cache.get(`csrf:${state}`);
     if (!exists) throw new BadRequestException('Invalid or expired CSRF state.');
-    await this.redis.del(`csrf:${state}`);
+    await this.cache.del(`csrf:${state}`);
   }
 
   async handleOAuthCallback(providerUser: {
@@ -80,13 +79,13 @@ export class AuthService {
     );
 
     const refreshToken = crypto.randomUUID();
-    await this.redis.set(`refresh:${refreshToken}`, userId, 'EX', refreshTtl);
+    await this.cache.set(`refresh:${refreshToken}`, userId, 'EX', refreshTtl);
 
     return { accessToken, refreshToken, expiresIn: accessTtl };
   }
 
   async refreshTokens(oldRefreshToken: string) {
-    const userId = await this.redis.get(`refresh:${oldRefreshToken}`);
+    const userId = await this.cache.get(`refresh:${oldRefreshToken}`);
     if (!userId) throw new UnauthorizedException('Session expired. Please log in again.');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -95,7 +94,7 @@ export class AuthService {
     const refreshTtl = this.config.get<number>('JWT_REFRESH_TOKEN_TTL', 2592000);
     const newRefreshToken = crypto.randomUUID();
 
-    const pipeline = this.redis.pipeline();
+    const pipeline = this.cache.pipeline();
     pipeline.del(`refresh:${oldRefreshToken}`);
     pipeline.set(`refresh:${newRefreshToken}`, userId, 'EX', refreshTtl);
     await pipeline.exec();
@@ -108,7 +107,7 @@ export class AuthService {
 
   async logout(refreshToken: string, jti: string) {
     const accessTtl = this.config.get<number>('JWT_ACCESS_TOKEN_TTL', 900);
-    const pipeline = this.redis.pipeline();
+    const pipeline = this.cache.pipeline();
     pipeline.del(`refresh:${refreshToken}`);
     pipeline.set(`jti_blacklist:${jti}`, '1', 'EX', accessTtl);
     await pipeline.exec();
