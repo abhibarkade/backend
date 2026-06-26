@@ -16,7 +16,7 @@ class DevLoginDto {
 }
 
 export const DEV_USER_ID = '00000000-0000-0000-0000-000000000001';
-export const DEV_USER_EMAIL = 'dev@tailor.test';
+export const DEV_USER_EMAIL = 'dev@outscored.test';
 export const DEV_USER_NAME = 'Dev User';
 
 @ApiTags('dev-auth')

@@ -46,7 +46,7 @@ async function bootstrap() {
   }));
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Tailor API')
+    .setTitle('Outscored API')
     .setDescription('AI-powered resume analysis backend')
     .setVersion('1.0')
     .addBearerAuth()
