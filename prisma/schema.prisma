@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["queryCompiler", "driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  user
+  admin
+}
+
+enum OAuthProvider {
+  google
+  apple
+  github
+  facebook
+}
+
+enum AnalysisStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum InputMode {
+  paste
+  link
+}
+
+enum HistoryStatus {
+  not_applied
+  applied
+  interviewing
+  offer
+  rejected
+}
+
+enum TagVariant {
+  sage
+  clay
+  amber
+}
+
+enum IconVariant {
+  amber
+  sage
+  clay
+  ink
+}
+
+model User {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String    @unique @db.VarChar(320)
+  fullName  String    @db.VarChar(255)
+  avatarUrl String?
+  role      Role      @default(user)
+  deletedAt DateTime? @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  updatedAt DateTime  @updatedAt @db.Timestamptz
+
+  oauthAccounts  OAuthAccount[]
+  analyses       Analysis[]
+  historyEntries HistoryEntry[]
+
+  @@index([email])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model OAuthAccount {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String        @db.Uuid
+  provider       OAuthProvider
+  providerUserId String        @db.VarChar(255)
+  providerEmail  String?       @db.VarChar(320)
+  createdAt      DateTime      @default(now()) @db.Timestamptz
+  updatedAt      DateTime      @updatedAt @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model Analysis {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String?        @db.Uuid
+  jobId          String         @unique @db.VarChar(64)
+  status         AnalysisStatus @default(pending)
+  resumeText     String?
+  resumeFilename String?        @db.VarChar(255)
+  jdText         String
+  jdSourceUrl    String?
+  inputMode      InputMode
+  result         Json?
+  promptVersion  String         @db.VarChar(20)
+  llmTokensUsed  Int?
+  errorMessage   String?
+  createdAt      DateTime       @default(now()) @db.Timestamptz
+  completedAt    DateTime?      @db.Timestamptz
+
+  user           User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  historyEntries HistoryEntry[]
+
+  @@index([userId])
+  @@index([jobId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("analyses")
+}
+
+model HistoryEntry {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String        @db.Uuid
+  analysisId String?       @db.Uuid
+  role       String        @db.VarChar(255)
+  company    String        @db.VarChar(255)
+  location   String?       @db.VarChar(255)
+  score      Int?          @db.SmallInt
+  status     HistoryStatus @default(not_applied)
+  tagLabel   String?       @db.VarChar(100)
+  tagVariant TagVariant?
+  appliedAt  DateTime?     @db.Timestamptz
+  createdAt  DateTime      @default(now()) @db.Timestamptz
+  updatedAt  DateTime      @updatedAt @db.Timestamptz
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis Analysis? @relation(fields: [analysisId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("history_entries")
+}
+
+model Template {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  icon        String      @db.VarChar(10)
+  iconVariant IconVariant
+  name        String      @db.VarChar(255)
+  description String
+  uses        Int         @default(0)
+  sampleJd    String
+  sortOrder   Int         @default(0) @db.SmallInt
+  isActive    Boolean     @default(true)
+
+  @@map("templates")
+}

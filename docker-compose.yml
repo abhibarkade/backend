@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tailor_postgres
+    environment:
+      POSTGRES_USER: tailor
+      POSTGRES_PASSWORD: tailor
+      POSTGRES_DB: tailor_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - tailor_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tailor -d tailor_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: tailor_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - tailor_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  tailor_pgdata:
+  tailor_redisdata:

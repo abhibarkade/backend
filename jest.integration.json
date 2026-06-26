@@ -1,0 +1,16 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testMatch": ["<rootDir>/test/integration/**/*.spec.ts"],
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "testEnvironment": "node",
+  "testTimeout": 30000,
+  "verbose": true,
+  "forceExit": true,
+  "detectOpenHandles": true,
+  "maxWorkers": 1,
+  "globalSetup": "<rootDir>/test/integration/global-setup.ts",
+  "globalTeardown": "<rootDir>/test/integration/global-teardown.ts"
+}
